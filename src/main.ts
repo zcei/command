@@ -20,11 +20,13 @@ export class Main extends Command {
   }
 
   async run() {
-    let [id, ...argv] = this.argv
+    const {id, argv} = this.parseCommandFromArgv()
+
     this.parse({strict: false, '--': false, ...this.ctor as any})
     if (!this.config.findCommand(id)) {
-      let topic = this.config.findTopic(id)
-      if (topic) return this._help()
+      const topic = this.parseTopicFromArgv()
+
+      if (topic) return this._helpTopic(topic)
     }
     await this.config.runCommand(id, argv)
   }
@@ -38,6 +40,50 @@ export class Main extends Command {
       if (arg === '--') return false
     }
     return false
+  }
+
+  protected parseCommandFromArgv(): { id: string, argv: string[] } {
+    let [id, ...argv] = this.argv
+
+    let currentCommandPortions = [id]
+    let arg
+
+    while (arg = argv.shift()) {
+      currentCommandPortions = [...currentCommandPortions, arg]
+      const currentCommandId = currentCommandPortions.join(':')
+
+      if (this.config.findCommand(currentCommandId)) {
+        id = currentCommandId
+        break
+      }
+    }
+
+    return {id, argv}
+  }
+
+  protected parseTopicFromArgv(): Config.Topic | undefined {
+    let [...argv] = this.argv
+
+    let topic
+    while (argv.length) {
+      const currentTopic = argv.join(':')
+      topic = this.config.findTopic(currentTopic)
+
+      if (topic) {
+        break
+      }
+
+      argv.pop()
+    }
+
+    return topic
+  }
+
+  protected _helpTopic(topic: Config.Topic) {
+    const HHelp: typeof Help = require('@oclif/plugin-help').default
+    const help = new HHelp(this.config)
+    help.showHelp([topic.name])
+    this.exit(0)
   }
 
   protected _help() {
